@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Deudas Weekend (Clientes)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+
+    <style>
+        /* --- Estructura & Reset --- */
+        html, body { 
+            height: 100%; margin: 0; padding: 0; overflow: hidden;
+            background-color: #f3f4f6; /* gray-100 */
+            color: #1f2937; /* gray-800 */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        
+        #root { height: 100%; width: 100%; display: flex; flex-direction: column; }
+
+        /* --- Utilidades --- */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .tap-effect:active { transform: scale(0.97); transition: transform 0.1s; }
+        
+        .fade-in { animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Grid de Tickets */
+        .ticket-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+            padding: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- ICONOS SVG ---
+        const Icons = {
+            plus: <path d="M5 12h14M12 5v14" />,
+            settings: <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"><circle cx="12" cy="12" r="3"/></path>,
+            arrowLeft: <path d="m12 19-7-7 7-7M19 12H5" />,
+            utensils: <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />,
+            coffee: <React.Fragment><path d="M17 8h1a4 4 0 1 1 0 8h-1M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" /><line x1="6" y1="2" x2="6" y2="4" /><line x1="10" y1="2" x2="10" y2="4" /><line x1="14" y1="2" x2="14" y2="4" /></React.Fragment>,
+            star: <path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-5.82 3.25L7.38 14.14 2 9.27l6.91-1.01L12 2z" />,
+            starOff: <path d="M8.32 5.32 12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-5.82 3.25L7.38 14.14 2 9.27l6.91-1.01L12 2z" />,
+            clipboard: <React.Fragment><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /></React.Fragment>,
+            chevronUp: <path d="m18 15-6-6-6 6" />,
+            chevronDown: <path d="m6 9 6 6 6-6" />,
+            banknote: <React.Fragment><rect width="20" height="12" x="2" y="6" rx="2" /><circle cx="12" cy="12" r="2" /><path d="M6 12h.01M18 12h.01" /></React.Fragment>,
+            trash: <React.Fragment><path d="M3 6h18M19 6v14c0 1.1-.9 2-2 2H7c-1.1 0-2-.9-2-2V6M8 6V4c0-1.1.9-2 2-2h4c1.1 0 2 .9 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></React.Fragment>,
+            plusCircle: <React.Fragment><circle cx="12" cy="12" r="10" /><path d="M8 12h8M12 8v8" /></React.Fragment>,
+            save: <React.Fragment><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></React.Fragment>,
+            wallet: <React.Fragment><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></React.Fragment>,
+            users: <React.Fragment><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></React.Fragment>,
+            layoutGrid: <React.Fragment><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /></React.Fragment>,
+            history: <React.Fragment><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" /><path d="M3 3v9h9" /><path d="M12 7v5l4 2" /></React.Fragment>,
+            user: <React.Fragment><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></React.Fragment>,
+            starFilled: <path fill="currentColor" d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-5.82 3.25L7.38 14.14 2 9.27l6.91-1.01L12 2z" />,
+            pencil: <React.Fragment><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path d="m15 5 4 4" /></React.Fragment>,
+            check: <path d="M20 6 9 17l-5-5" />,
+            x: <path d="M18 6 6 18M6 6l12 12" />,
+            unlock: <React.Fragment><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" /></React.Fragment>
+        };
+
+        const Icon = ({ name, size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {Icons[name] || null}
+            </svg>
+        );
+
+        // --- DATOS ---
+        const DEFAULT_MENU = [
+            { id: 'soltero', name: 'Soltero', price: 12, category: 'food' },
+            { id: 'escabeche', name: 'Escabeche', price: 14, category: 'food' },
+            { id: 'rocoto', name: 'Rocoto Relleno', price: 15, category: 'food' },
+            { id: 'papa', name: 'Papa Rebosada', price: 8, category: 'food' },
+            { id: 'emp_queso', name: 'Emp. Queso', price: 4, category: 'food' },
+            { id: 'emp_carne', name: 'Emp. Carne', price: 5, category: 'food' },
+            { id: 'huevo', name: 'Huevo Sanc.', price: 2, category: 'extra' },
+            { id: 'chicha', name: 'Chicha Jora', price: 3, category: 'drink' },
+            { id: 'morado', name: 'Maíz Morado', price: 3, category: 'drink' },
+            { id: 'cocona', name: 'Ref. Cocona', price: 3, category: 'drink' },
+            { id: 'pina', name: 'Ref. Piña', price: 3, category: 'drink' },
+            { id: 'maracuya', name: 'Ref. Maracuyá', price: 3, category: 'drink' },
+        ];
+
+        const getDayLabel = (timestamp) => {
+            if (!timestamp) return '';
+            const date = new Date(timestamp);
+            const days = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
+            return days[date.getDay()];
+        };
+
+        const getDayColor = (label) => {
+            if (label === 'SÁB') return 'bg-purple-100 text-purple-700 border-purple-200';
+            if (label === 'DOM') return 'bg-teal-100 text-teal-700 border-teal-200';
+            return 'bg-gray-100 text-gray-600 border-gray-200';
+        };
+
+        // --- APP ---
+        function App() {
+            const [view, setView] = useState('dashboard'); // dashboard, pos, settings, add, clients, client_detail
+            const [customers, setCustomers] = useState([]);
+            const [menu, setMenu] = useState(DEFAULT_MENU);
+            const [activeCustomerId, setActiveCustomerId] = useState(null);
+            const [selectedClientName, setSelectedClientName] = useState(null);
+            const [pinnedClients, setPinnedClients] = useState([]);
+
+            useEffect(() => {
+                const c = localStorage.getItem('w_customers');
+                const m = localStorage.getItem('w_menu');
+                const p = localStorage.getItem('w_pinned_clients');
+                if(c) setCustomers(JSON.parse(c));
+                if(m) setMenu(JSON.parse(m));
+                if(p) setPinnedClients(JSON.parse(p));
+            }, []);
+
+            useEffect(() => {
+                localStorage.setItem('w_customers', JSON.stringify(customers));
+                localStorage.setItem('w_menu', JSON.stringify(menu));
+                localStorage.setItem('w_pinned_clients', JSON.stringify(pinnedClients));
+            }, [customers, menu, pinnedClients]);
+
+            const createCustomer = (name) => {
+                const newC = { 
+                    id: Date.now().toString(), 
+                    name, 
+                    items: [], 
+                    total: 0, 
+                    isPaid: false, 
+                    createdAt: Date.now(),
+                    payments: [] 
+                };
+                setCustomers([newC, ...customers]);
+                setActiveCustomerId(newC.id);
+                setView('pos');
+            };
+
+            const updateOrder = (cid, items) => {
+                const total = items.reduce((a, b) => a + (b.price * b.count), 0);
+                setCustomers(prev => prev.map(c => c.id === cid ? { ...c, items, total } : c));
+            };
+
+            const addPayment = (cid, amount) => {
+                setCustomers(prev => prev.map(c => {
+                    if(c.id === cid) {
+                        const newPayments = [...(c.payments || []), { amount: parseFloat(amount), date: Date.now() }];
+                        const paidSoFar = newPayments.reduce((acc, p) => acc + p.amount, 0);
+                        const isFullyPaid = paidSoFar >= c.total && c.total > 0;
+                        return { ...c, payments: newPayments, isPaid: isFullyPaid };
+                    }
+                    return c;
+                }));
+            };
+
+            const payOrder = (cid) => {
+                if(!confirm("¿Cerrar cuenta completamente?")) return;
+                setCustomers(prev => prev.map(c => c.id === cid ? { ...c, isPaid: true } : c));
+                setView('dashboard');
+            };
+
+            const reopenOrder = (cid) => {
+                if(!confirm("¿Reabrir este pedido para editarlo?")) return;
+                setCustomers(prev => prev.map(c => c.id === cid ? { ...c, isPaid: false } : c));
+            };
+
+             const deleteCustomer = (cid) => {
+                if(!confirm("¿Borrar registro?")) return;
+                setCustomers(prev => prev.filter(c => c.id !== cid));
+                if (view === 'pos') setView('dashboard');
+            };
+
+            const togglePin = (name) => {
+                if(pinnedClients.includes(name)) {
+                    setPinnedClients(pinnedClients.filter(n => n !== name));
+                } else {
+                    setPinnedClients([...pinnedClients, name]);
+                }
+            };
+
+            const renameClient = (oldName, newName) => {
+                if (!newName.trim() || oldName === newName) return;
+                if(!confirm(`¿Renombrar a "${oldName}" como "${newName}"? Esto actualizará todos sus tickets históricos.`)) return;
+                
+                setCustomers(prev => prev.map(c => {
+                    if (c.name.trim() === oldName) {
+                        return { ...c, name: newName.trim() };
+                    }
+                    return c;
+                }));
+                
+                if (pinnedClients.includes(oldName)) {
+                    setPinnedClients(prev => [...prev.filter(n => n !== oldName), newName.trim()]);
+                }
+                
+                setSelectedClientName(newName.trim());
+            };
+
+            const activeCustomer = customers.find(c => c.id === activeCustomerId);
+
+            let content;
+            if(view === 'dashboard') content = <Dashboard customers={customers} onSelect={(id) => { setActiveCustomerId(id); setView('pos'); }} onAdd={() => setView('add')} onSettings={() => setView('settings')} />;
+            else if(view === 'clients') content = <ClientsList customers={customers} onSelectClient={(name) => { setSelectedClientName(name); setView('client_detail'); }} pinnedClients={pinnedClients} onTogglePin={togglePin} />;
+            else if(view === 'client_detail') content = <ClientDetail name={selectedClientName} customers={customers} onBack={() => setView('clients')} onSelectTicket={(id) => { setActiveCustomerId(id); setView('pos'); }} isPinned={pinnedClients.includes(selectedClientName)} onTogglePin={togglePin} onRename={renameClient} />;
+            else if(view === 'add') content = <AddCustomer onSave={createCustomer} onBack={() => setView('dashboard')} />;
+            else if(view === 'pos' && activeCustomer) content = <POSLayout customer={activeCustomer} menu={menu} onUpdate={updateOrder} onPay={payOrder} onReopen={reopenOrder} onAddPayment={addPayment} onDelete={deleteCustomer} onBack={() => setView('dashboard')} />;
+            else if(view === 'settings') content = <Settings menu={menu} onSave={(m) => { setMenu(m); setView('dashboard'); }} onBack={() => setView('dashboard')} />;
+            else content = <Dashboard customers={customers} onSelect={(id) => { setActiveCustomerId(id); setView('pos'); }} onAdd={() => setView('add')} onSettings={() => setView('settings')} />;
+
+            const showNav = view === 'dashboard' || view === 'clients';
+
+            return (
+                <div className="h-full flex flex-col">
+                    <div className="flex-1 overflow-hidden relative">
+                        {content}
+                    </div>
+                    {showNav && (
+                        <div className="flex bg-white border-t border-slate-200 pb-safe">
+                            <button onClick={() => setView('dashboard')} className={`flex-1 py-3 flex flex-col items-center gap-1 ${view === 'dashboard' ? 'text-slate-900' : 'text-slate-400'}`}>
+                                <Icon name="layoutGrid" size={24} />
+                                <span className="text-[10px] font-bold">MESAS</span>
+                            </button>
+                            <button onClick={() => setView('clients')} className={`flex-1 py-3 flex flex-col items-center gap-1 ${view === 'clients' ? 'text-slate-900' : 'text-slate-400'}`}>
+                                <Icon name="users" size={24} />
+                                <span className="text-[10px] font-bold">CLIENTES</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // --- VISTAS DE CLIENTES ---
+
+        function ClientsList({ customers, onSelectClient, pinnedClients, onTogglePin }) {
+            const [filter, setFilter] = useState('favorites'); // favorites, all
+            const [search, setSearch] = useState('');
+
+            const clientsMap = useMemo(() => {
+                const map = {};
+                customers.forEach(c => {
+                    const name = c.name.trim(); 
+                    if (!name) return;
+                    if (!map[name]) map[name] = { name, visits: 0, totalSpent: 0, lastVisit: 0 };
+                    
+                    map[name].visits += 1;
+                    map[name].totalSpent += c.total;
+                    if (c.createdAt > map[name].lastVisit) map[name].lastVisit = c.createdAt;
+                });
+                return map;
+            }, [customers]);
+
+            let displayList = Object.values(clientsMap).sort((a, b) => b.lastVisit - a.lastVisit);
+
+            if (filter === 'favorites') {
+                displayList = displayList.filter(c => pinnedClients.includes(c.name));
+            }
+
+            if (search) {
+                displayList = displayList.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
+            }
+
+            return (
+                <div className="flex flex-col h-full bg-slate-100">
+                    <div className="bg-white p-4 border-b border-slate-200 z-10 sticky top-0">
+                        <div className="flex gap-2 mb-4">
+                            <button 
+                                onClick={() => setFilter('favorites')}
+                                className={`flex-1 py-2 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${filter === 'favorites' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' : 'bg-slate-100 text-slate-500'}`}
+                            >
+                                <Icon name="star" size={16} className={filter === 'favorites' ? 'text-yellow-500' : ''} /> FAVORITOS
+                            </button>
+                            <button 
+                                onClick={() => setFilter('all')}
+                                className={`flex-1 py-2 rounded-xl font-bold text-sm transition-all ${filter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500'}`}
+                            >
+                                TODOS
+                            </button>
+                        </div>
+                        <input 
+                            type="text" 
+                            placeholder="Buscar cliente..." 
+                            className="w-full p-3 bg-slate-100 rounded-xl outline-none font-bold text-slate-700 focus:bg-slate-50 border border-transparent focus:border-slate-300"
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                        />
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2 pb-24">
+                        {displayList.length === 0 && (
+                            <div className="text-center py-10 opacity-50">
+                                <Icon name={filter === 'favorites' ? 'starOff' : 'users'} size={48} className="mx-auto mb-2 text-slate-300" />
+                                <p className="text-slate-400 font-medium">No hay clientes aquí</p>
+                            </div>
+                        )}
+
+                        {displayList.map(client => {
+                            const isPinned = pinnedClients.includes(client.name);
+                            return (
+                                <div key={client.name} onClick={() => onSelectClient(client.name)} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center tap-effect relative">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold border ${isPinned ? 'bg-yellow-100 text-yellow-600 border-yellow-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                            {isPinned ? <Icon name="starFilled" size={16} /> : client.name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-slate-800">{client.name}</h3>
+                                            <p className="text-xs text-slate-500">Última: {new Date(client.lastVisit).toLocaleDateString()}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-right">
+                                            <span className="block font-black text-slate-800">S/ {client.totalSpent.toFixed(2)}</span>
+                                            <span className="text-xs font-bold text-slate-400">{client.visits} visitas</span>
+                                        </div>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); onTogglePin(client.name); }}
+                                            className={`p-2 rounded-full ${isPinned ? 'text-yellow-500 bg-yellow-50' : 'text-slate-300 hover:bg-slate-100'}`}
+                                        >
+                                            <Icon name={isPinned ? "starFilled" : "star"} size={20} />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        function ClientDetail({ name, customers, onBack, onSelectTicket, isPinned, onTogglePin, onRename }) {
+            const [isEditing, setIsEditing] = useState(false);
+            const [newName, setNewName] = useState(name);
+            
+            const history = customers.filter(c => c.name.trim() === name).sort((a, b) => b.createdAt - a.createdAt);
+            const totalSpent = history.reduce((acc, c) => acc + c.total, 0);
+
+            const handleSaveName = () => {
+                onRename(name, newName);
+                setIsEditing(false);
+            };
+
+            return (
+                <div className="flex flex-col h-full bg-slate-100">
+                    <div className="bg-white p-4 border-b border-slate-200 z-10 sticky top-0">
+                        {isEditing ? (
+                            <div className="flex gap-2 items-center animate-in fade-in">
+                                <input 
+                                    autoFocus
+                                    className="flex-1 p-2 bg-slate-100 rounded-lg font-bold outline-none border border-blue-200 focus:border-blue-500"
+                                    value={newName}
+                                    onChange={e => setNewName(e.target.value)}
+                                />
+                                <button onClick={handleSaveName} className="p-2 bg-green-100 text-green-700 rounded-lg"><Icon name="check" size={20}/></button>
+                                <button onClick={() => { setIsEditing(false); setNewName(name); }} className="p-2 bg-slate-100 text-slate-500 rounded-lg"><Icon name="x" size={20}/></button>
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-slate-100"><Icon name="arrowLeft" size={24} /></button>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h2 className="font-black text-xl leading-none">{name}</h2>
+                                            <button onClick={() => setIsEditing(true)} className="text-slate-400 hover:text-slate-600"><Icon name="pencil" size={16} /></button>
+                                        </div>
+                                        <span className="text-xs text-slate-500">Total Histórico: S/ {totalSpent.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => onTogglePin(name)}
+                                    className={`p-2 rounded-full border ${isPinned ? 'bg-yellow-50 border-yellow-200 text-yellow-500' : 'bg-white border-slate-200 text-slate-300'}`}
+                                >
+                                    <Icon name={isPinned ? "starFilled" : "star"} size={24} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                        {history.map(ticket => {
+                            const date = new Date(ticket.createdAt);
+                            const dayLabel = getDayLabel(ticket.createdAt);
+                            
+                            return (
+                                <div key={ticket.id} onClick={() => onSelectTicket(ticket.id)} className={`p-4 rounded-xl shadow-sm border tap-effect ${ticket.isPaid ? 'bg-white border-slate-200' : 'bg-orange-50 border-orange-200'}`}>
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getDayColor(dayLabel)}`}>{dayLabel}</span>
+                                            <span className="text-xs text-slate-500 font-bold">{date.toLocaleDateString()}</span>
+                                        </div>
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${ticket.isPaid ? 'bg-green-100 text-green-700' : 'bg-orange-200 text-orange-800'}`}>
+                                            {ticket.isPaid ? 'PAGADO' : 'PENDIENTE'}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="space-y-1 mb-3">
+                                        {ticket.items.map((item, idx) => (
+                                            <div key={idx} className="flex justify-between text-sm text-slate-600">
+                                                <span>{item.count} x {item.name}</span>
+                                                <span>S/ {(item.price * item.count).toFixed(2)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    
+                                    <div className="border-t border-slate-100 pt-2 flex justify-between items-center">
+                                        <span className="text-xs text-slate-400 font-bold">TOTAL</span>
+                                        <span className="text-xl font-black text-slate-800">S/ {ticket.total.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        // --- VISTAS EXISTENTES (Ligeramente adaptadas para el Layout) ---
+
+        function Dashboard({ customers, onSelect, onAdd, onSettings }) {
+            const active = customers.filter(c => !c.isPaid).sort((a, b) => b.createdAt - a.createdAt);
+            const totalPending = active.reduce((acc, c) => {
+                const paidAmount = (c.payments || []).reduce((p, curr) => p + curr.amount, 0);
+                return acc + (c.total - paidAmount);
+            }, 0);
+
+            return (
+                <div className="flex flex-col h-full bg-slate-100">
+                    <div className="bg-white px-4 py-3 flex justify-between items-center shadow-sm z-10">
+                        <div>
+                            <h1 className="font-black text-xl text-slate-800">Mesas Activas</h1>
+                            <span className="text-xs font-bold text-orange-600">Por cobrar: S/ {totalPending.toFixed(2)}</span>
+                        </div>
+                        <button onClick={onSettings} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors">
+                            <Icon name="settings" size={24} />
+                        </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto ticket-grid content-start pb-20">
+                        <button onClick={onAdd} className="bg-slate-800 text-white rounded-2xl flex flex-col items-center justify-center min-h-[140px] shadow-lg tap-effect gap-2 group">
+                            <div className="bg-white/20 p-3 rounded-full group-hover:bg-white/30 transition-colors"><Icon name="plus" size={24} /></div>
+                            <span className="font-bold">Nueva Cuenta</span>
+                        </button>
+
+                        {active.map(c => {
+                            const dayLabel = getDayLabel(c.createdAt);
+                            const dayColorClass = getDayColor(dayLabel);
+                            const paidAmount = (c.payments || []).reduce((acc, p) => acc + p.amount, 0);
+                            const balance = c.total - paidAmount;
+                            const hasAdvance = paidAmount > 0;
+
+                            return (
+                                <div key={c.id} onClick={() => onSelect(c.id)} className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between min-h-[140px] tap-effect relative overflow-hidden">
+                                    <div className="flex justify-between items-start">
+                                        <div className={`px-2 py-1 rounded-md text-[10px] font-black border ${dayColorClass}`}>{dayLabel}</div>
+                                        <div className="text-[10px] text-slate-400 font-medium">{new Date(c.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+                                    </div>
+                                    <div className="z-10 mt-1">
+                                        <h3 className="font-bold text-lg leading-tight mb-1 truncate">{c.name}</h3>
+                                        <p className="text-xs text-slate-500">{c.items.reduce((acc, i) => acc + i.count, 0)} items</p>
+                                    </div>
+                                    <div className="z-10 mt-2 border-t border-slate-100 pt-2">
+                                        {hasAdvance ? (
+                                            <div>
+                                                <div className="flex justify-between text-[10px] uppercase font-bold text-slate-400 mb-1">
+                                                    <span>Resta</span>
+                                                    <span className="text-orange-600">S/ {balance.toFixed(2)}</span>
+                                                </div>
+                                                <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                                    <div className="bg-green-500 h-full" style={{width: `${(paidAmount/c.total)*100}%`}}></div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <span className="block text-xl font-black text-slate-800">S/ {c.total.toFixed(2)}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        function POSLayout({ customer, menu, onUpdate, onPay, onReopen, onAddPayment, onDelete, onBack }) {
+            const [tab, setTab] = useState('food'); 
+            const [isCartOpen, setIsCartOpen] = useState(false);
+            const [showPaymentInput, setShowPaymentInput] = useState(false);
+            const [paymentAmount, setPaymentAmount] = useState('');
+
+            const paidAmount = (customer.payments || []).reduce((acc, p) => acc + p.amount, 0);
+            const balance = customer.total - paidAmount;
+
+            const foodItems = menu.filter(m => (m.category === 'food' || m.category === 'extra') && m.category !== 'special');
+            const drinkItems = menu.filter(m => m.category === 'drink');
+            const specialItems = menu.filter(m => m.category === 'special');
+
+            let currentList = [];
+            if(tab === 'food') currentList = foodItems;
+            else if(tab === 'drink') currentList = drinkItems;
+            else if(tab === 'special') currentList = specialItems;
+
+            const handleItem = (item, delta) => {
+                if(customer.isPaid) return;
+                const newItems = [...customer.items];
+                const idx = newItems.findIndex(i => i.id === item.id);
+                if(idx >= 0) {
+                    newItems[idx].count += delta;
+                    if(newItems[idx].count <= 0) newItems.splice(idx, 1);
+                } else if(delta > 0) {
+                    newItems.push({ ...item, count: 1 });
+                }
+                onUpdate(customer.id, newItems);
+            };
+
+            const getItemCount = (id) => {
+                const item = customer.items.find(i => i.id === id);
+                return item ? item.count : 0;
+            };
+
+            const handleAddPayment = () => {
+                const amount = parseFloat(paymentAmount);
+                if (amount > 0) {
+                    onAddPayment(customer.id, amount);
+                    setPaymentAmount('');
+                    setShowPaymentInput(false);
+                }
+            };
+
+            const dateStr = new Date(customer.createdAt).toLocaleDateString('es-PE', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+
+            return (
+                <div className="flex flex-col h-full bg-white relative">
+                    <div className="flex flex-col px-4 py-2 border-b border-slate-100 bg-white z-10">
+                        <div className="flex items-center justify-between mb-1">
+                             <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-slate-50"><Icon name="arrowLeft" size={24} className="text-slate-500" /></button>
+                             <div className="text-center">
+                                 <h2 className="font-bold text-lg leading-none truncate max-w-[200px]">{customer.name}</h2>
+                                 <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Iniciado: {dateStr}</span>
+                             </div>
+                             <div className={`w-3 h-3 rounded-full ${customer.isPaid ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+                        </div>
+                        {balance > 0 && balance < customer.total && (
+                            <div className="flex justify-between items-center bg-orange-50 px-3 py-1 rounded-lg border border-orange-100">
+                                <span className="text-xs font-bold text-orange-600 uppercase">Saldo Pendiente</span>
+                                <span className="font-black text-orange-700">S/ {balance.toFixed(2)}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex p-2 gap-2 bg-slate-50 shadow-inner overflow-x-auto">
+                        <button onClick={() => setTab('food')} className={`flex-1 min-w-[80px] py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1 transition-all ${tab === 'food' ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200'}`}>
+                            <Icon name="utensils" size={16} /> Comidas
+                        </button>
+                        <button onClick={() => setTab('special')} className={`flex-1 min-w-[80px] py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1 transition-all ${tab === 'special' ? 'bg-purple-600 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200'}`}>
+                            <Icon name="star" size={16} /> Especiales
+                        </button>
+                        <button onClick={() => setTab('drink')} className={`flex-1 min-w-[80px] py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1 transition-all ${tab === 'drink' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200'}`}>
+                            <Icon name="coffee" size={16} /> Bebidas
+                        </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-3 pb-24 bg-slate-50">
+                        {currentList.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                                {tab === 'special' ? <Icon name="starOff" size={48} className="mb-2" /> : <Icon name="clipboard" size={48} className="mb-2" />}
+                                <p>No hay items aquí</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-3">
+                                {currentList.map(item => {
+                                    const count = getItemCount(item.id);
+                                    const isSpecial = item.category === 'special';
+                                    return (
+                                        <button key={item.id} disabled={customer.isPaid} onClick={() => handleItem(item, 1)} className={`p-4 rounded-xl border shadow-sm flex flex-col items-center justify-center min-h-[110px] tap-effect relative transition-all ${count > 0 ? (isSpecial ? 'bg-white border-purple-500 ring-1 ring-purple-500' : 'bg-white border-orange-500 ring-1 ring-orange-500') : 'bg-white border-slate-200'} ${customer.isPaid ? 'opacity-50 grayscale' : ''}`}>
+                                            {count > 0 && <div className={`absolute top-2 right-2 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${isSpecial ? 'bg-purple-600' : 'bg-orange-600'}`}>{count}</div>}
+                                            <span className="font-bold text-slate-700 text-center leading-tight text-lg">{item.name}</span>
+                                            <span className={`text-xs font-bold mt-1 px-2 py-0.5 rounded-full ${isSpecial ? 'text-purple-600 bg-purple-50' : 'text-slate-400'}`}>S/ {item.price}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className={`absolute bottom-0 left-0 w-full bg-white shadow-[0_-5px_20px_rgba(0,0,0,0.1)] rounded-t-3xl transition-all duration-300 z-30 flex flex-col ${isCartOpen ? 'h-[85%]' : 'h-20'}`}>
+                        <div onClick={() => setIsCartOpen(!isCartOpen)} className="h-20 px-6 flex items-center justify-between cursor-pointer border-b border-slate-100 shrink-0 bg-white rounded-t-3xl">
+                            <div className="flex flex-col">
+                                <span className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1">
+                                    {balance === 0 ? 'Pagado' : 'Por Pagar'} {isCartOpen ? <Icon name="chevronDown" size={12} /> : <Icon name="chevronUp" size={12} />}
+                                </span>
+                                <span className={`text-3xl font-black ${balance === 0 ? 'text-green-600' : 'text-slate-800'}`}>S/ {balance.toFixed(2)}</span>
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <div className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg mb-1">{customer.items.reduce((a,b)=>a+b.count,0)} Items</div>
+                                {customer.total > balance && <span className="text-[10px] text-green-600 font-bold">A cuenta: S/ {paidAmount.toFixed(2)}</span>}
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
+                             {(customer.payments || []).length > 0 && (
+                                 <div className="mb-4 bg-green-50 border border-green-100 rounded-xl p-3">
+                                     <h3 className="text-xs font-bold text-green-700 uppercase mb-2">Historial de Pagos</h3>
+                                     {customer.payments.map((p, i) => (
+                                         <div key={i} className="flex justify-between text-sm py-1 border-b border-green-100 last:border-0">
+                                             <span className="text-green-800">Adelanto</span>
+                                             <span className="font-bold text-green-700">S/ {p.amount.toFixed(2)}</span>
+                                         </div>
+                                     ))}
+                                     <div className="flex justify-between text-sm font-bold pt-2 border-t border-green-200 mt-1">
+                                         <span>Total Pagado</span>
+                                         <span>S/ {paidAmount.toFixed(2)}</span>
+                                     </div>
+                                 </div>
+                             )}
+
+                             {!customer.isPaid && balance > 0 && (
+                                 <div className="mb-4">
+                                     {showPaymentInput ? (
+                                         <div className="flex gap-2 animate-in fade-in zoom-in duration-200">
+                                             <input 
+                                                autoFocus
+                                                type="number" 
+                                                placeholder="Monto"
+                                                className="flex-1 p-3 border border-slate-300 rounded-xl outline-none focus:border-green-500 font-bold text-lg"
+                                                value={paymentAmount}
+                                                onChange={e => setPaymentAmount(e.target.value)}
+                                             />
+                                             <button onClick={handleAddPayment} className="bg-green-600 text-white px-4 rounded-xl font-bold tap-effect">OK</button>
+                                             <button onClick={() => setShowPaymentInput(false)} className="bg-slate-200 text-slate-600 px-3 rounded-xl font-bold">X</button>
+                                         </div>
+                                     ) : (
+                                         <button onClick={() => setShowPaymentInput(true)} className="w-full py-3 border-2 border-dashed border-green-300 text-green-600 rounded-xl font-bold hover:bg-green-50 tap-effect flex items-center justify-center gap-2">
+                                             <Icon name="wallet" size={20} /> Registrar Adelanto
+                                         </button>
+                                     )}
+                                 </div>
+                             )}
+
+                             <div className="h-px bg-slate-200 my-2"></div>
+
+                             {customer.items.length === 0 ? <p className="text-center text-slate-400 mt-4">Carrito vacío</p> : (
+                                 <div className="space-y-3">
+                                     {customer.items.map(item => (
+                                         <div key={item.id} className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                                             <div className="flex items-center gap-3">
+                                                {!customer.isPaid && (
+                                                     <div className="flex items-center bg-slate-100 rounded-lg">
+                                                         <button onClick={(e) => { e.stopPropagation(); handleItem(item, -1); }} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 active:bg-slate-200 rounded-l-lg">-</button>
+                                                         <span className="w-8 text-center font-bold text-sm">{item.count}</span>
+                                                         <button onClick={(e) => { e.stopPropagation(); handleItem(item, 1); }} className="w-8 h-8 flex items-center justify-center font-bold text-slate-900 active:bg-slate-200 rounded-r-lg">+</button>
+                                                     </div>
+                                                )}
+                                                {customer.isPaid && <span className="font-bold">x{item.count}</span>}
+                                                <span className="font-medium">{item.name}</span>
+                                             </div>
+                                             <span className="font-bold text-slate-700">S/ {(item.price * item.count).toFixed(2)}</span>
+                                         </div>
+                                     ))}
+                                 </div>
+                             )}
+                        </div>
+
+                        {isCartOpen && (
+                            <div className="p-4 bg-white border-t border-slate-100 flex gap-3 shrink-0">
+                                {!customer.isPaid ? (
+                                    <button onClick={() => onPay(customer.id)} className="flex-1 bg-slate-900 text-white py-4 rounded-xl font-bold text-lg shadow-lg tap-effect flex items-center justify-center gap-2">
+                                        <Icon name="banknote" size={20} /> 
+                                        {balance === 0 ? 'CERRAR CUENTA' : `COBRAR S/ ${balance.toFixed(2)}`}
+                                    </button>
+                                ) : (
+                                    <React.Fragment>
+                                        <button onClick={() => onReopen(customer.id)} className="flex-1 bg-orange-100 text-orange-700 py-4 rounded-xl font-bold tap-effect flex items-center justify-center gap-2">
+                                            <Icon name="unlock" size={20} /> Reabrir / Editar
+                                        </button>
+                                        <button onClick={() => setIsCartOpen(false)} className="flex-1 bg-slate-200 text-slate-700 py-4 rounded-xl font-bold tap-effect">Ocultar</button>
+                                    </React.Fragment>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    {isCartOpen && <div onClick={() => setIsCartOpen(false)} className="absolute top-0 left-0 w-full h-[15%] bg-black/20 z-20 backdrop-blur-sm"></div>}
+                </div>
+            );
+        }
+
+        function AddCustomer({ onSave, onBack }) {
+            const [name, setName] = useState('');
+            return (
+                <div className="h-full bg-white flex flex-col p-6">
+                    <button onClick={onBack} className="self-start mb-6 p-2 -ml-2 rounded-full hover:bg-slate-50"><Icon name="arrowLeft" size={24} /></button>
+                    <h2 className="text-2xl font-black mb-6">¿Quién es el cliente?</h2>
+                    <input autoFocus type="text" placeholder="Ej: Mesa 5" className="text-4xl font-bold border-b-2 border-slate-200 py-2 outline-none focus:border-slate-800 w-full" value={name} onChange={e => setName(e.target.value)} />
+                    <div className="flex gap-2 mt-4 flex-wrap">
+                        {["Mesa 1", "Mesa 2", "Barra", "Llevar"].map(t => <button key={t} onClick={()=>setName(t)} className="bg-slate-100 px-4 py-2 rounded-full text-sm font-bold">{t}</button>)}
+                    </div>
+                    <button disabled={!name} onClick={() => onSave(name)} className="mt-auto w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg tap-effect disabled:opacity-50">Crear Ticket</button>
+                </div>
+            );
+        }
+
+        function Settings({ menu, onSave, onBack }) {
+            const [localMenu, setLocalMenu] = useState(menu);
+            const [newItem, setNewItem] = useState({ name: '', price: '', category: 'food' });
+            const [isAdding, setIsAdding] = useState(false);
+
+            const handleDelete = (id) => {
+                if(!confirm("¿Eliminar este plato del menú?")) return;
+                setLocalMenu(localMenu.filter(m => m.id !== id));
+            };
+
+            const handleAdd = () => {
+                if(!newItem.name || !newItem.price) return;
+                const item = {
+                    id: Date.now().toString(),
+                    name: newItem.name,
+                    price: parseFloat(newItem.price),
+                    category: newItem.category
+                };
+                setLocalMenu([...localMenu, item]);
+                setNewItem({ name: '', price: '', category: 'food' });
+                setIsAdding(false);
+            };
+
+            const updateItemField = (index, field, value) => {
+                const newM = [...localMenu];
+                newM[index][field] = value;
+                setLocalMenu(newM);
+            };
+
+            return (
+                <div className="h-full flex flex-col bg-white">
+                    <div className="p-4 border-b flex gap-2 items-center bg-white z-10 shadow-sm">
+                        <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-slate-50"><Icon name="arrowLeft" size={24} /></button>
+                        <h2 className="font-bold text-lg">Gestionar Menú</h2>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+                        {localMenu.map((m, i) => (
+                            <div key={m.id} className="bg-white p-3 border border-slate-200 rounded-xl shadow-sm flex flex-col gap-2 fade-in">
+                                <div className="flex justify-between items-center gap-2">
+                                    <input className="font-bold text-slate-800 flex-1 outline-none border-b border-transparent focus:border-orange-500 bg-transparent py-1" value={m.name} onChange={e => updateItemField(i, 'name', e.target.value)} />
+                                    <div className="flex items-center gap-1 bg-slate-50 rounded px-2">
+                                        <span className="text-xs text-slate-400 font-bold">S/</span>
+                                        <input type="number" className="w-16 text-right font-bold bg-transparent p-1 outline-none text-slate-800" value={m.price} onChange={e => updateItemField(i, 'price', parseFloat(e.target.value)||0)} />
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center border-t border-slate-50 pt-2 mt-1">
+                                    <div className="flex bg-slate-100 rounded-lg p-1 gap-1">
+                                        <button onClick={() => updateItemField(i, 'category', 'food')} className={`px-2 py-1 rounded text-[10px] font-bold ${m.category === 'food' ? 'bg-white shadow text-orange-600' : 'text-slate-400'}`}>Comida</button>
+                                        <button onClick={() => updateItemField(i, 'category', 'special')} className={`px-2 py-1 rounded text-[10px] font-bold ${m.category === 'special' ? 'bg-white shadow text-purple-600' : 'text-slate-400'}`}>Especial</button>
+                                        <button onClick={() => updateItemField(i, 'category', 'drink')} className={`px-2 py-1 rounded text-[10px] font-bold ${m.category === 'drink' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}>Bebida</button>
+                                    </div>
+                                    <button onClick={() => handleDelete(m.id)} className="text-red-400 hover:text-red-600 p-1 hover:bg-red-50 rounded"><Icon name="trash" size={16} /></button>
+                                </div>
+                            </div>
+                        ))}
+                        
+                        {isAdding ? (
+                            <div className="bg-slate-800 p-4 rounded-xl shadow-lg text-white fade-in border border-slate-700">
+                                <h3 className="font-bold mb-3 text-xs uppercase text-slate-400 tracking-wider">Nuevo Item</h3>
+                                <div className="space-y-3">
+                                    <input placeholder="Nombre (ej: Arroz con Pato)" className="w-full p-3 rounded-lg bg-slate-700 text-white placeholder:text-slate-500 outline-none border border-slate-600 focus:border-orange-500 transition-colors" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} autoFocus />
+                                    <div className="flex gap-2 items-center">
+                                         <span className="text-slate-500 font-bold text-sm">S/</span>
+                                         <input type="number" className="w-24 p-3 rounded-lg bg-slate-700 text-white placeholder:text-slate-500 outline-none border border-slate-600 focus:border-orange-500" value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} />
+                                    </div>
+                                    <div className="flex gap-2 pt-1">
+                                        <button onClick={() => setNewItem({...newItem, category: 'food'})} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${newItem.category === 'food' ? 'bg-orange-600 border-orange-600 text-white' : 'border-slate-600 text-slate-400'}`}>Comida</button>
+                                        <button onClick={() => setNewItem({...newItem, category: 'special'})} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${newItem.category === 'special' ? 'bg-purple-600 border-purple-600 text-white' : 'border-slate-600 text-slate-400'}`}>Especial</button>
+                                        <button onClick={() => setNewItem({...newItem, category: 'drink'})} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${newItem.category === 'drink' ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-600 text-slate-400'}`}>Bebida</button>
+                                    </div>
+                                    <div className="flex gap-2 pt-2 border-t border-slate-700 mt-2">
+                                        <button onClick={() => setIsAdding(false)} className="flex-1 py-3 bg-slate-600 rounded-lg font-bold hover:bg-slate-500 text-sm">Cancelar</button>
+                                        <button onClick={handleAdd} className="flex-1 py-3 bg-green-600 rounded-lg font-bold hover:bg-green-500 text-sm shadow-lg">Agregar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <button onClick={() => setIsAdding(true)} className="w-full py-4 border-2 border-dashed border-slate-300 rounded-xl text-slate-400 font-bold flex items-center justify-center gap-2 hover:bg-white hover:border-slate-400 hover:text-slate-600 transition-all bg-white/50">
+                                <Icon name="plusCircle" size={20} /> Agregar Nuevo Plato
+                            </button>
+                        )}
+                        <div className="h-6"></div>
+                    </div>
+                    <div className="p-4 border-t bg-white z-20">
+                        <button onClick={()=>onSave(localMenu)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold shadow-lg tap-effect flex items-center justify-center gap-2">
+                            <Icon name="save" size={20} /> Guardar Menú
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
